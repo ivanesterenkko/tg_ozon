@@ -117,9 +117,6 @@ async def update_ozon_data(message: types.Message):
         await message.answer("Файл с товарами не был загружен!")
         return
     df = pd.read_excel(user_data[user_id]['df'])
-    file_path = '/home/alex/tg_ozon/ozon_artikules.xlsx'
-    pdf = pd.read_excel(file_path)
-    article_data = pdf.iloc[:, 0].dropna().astype(str).str.strip().values
     updated_products = []
 
     ssl_context = ssl.create_default_context()
@@ -130,14 +127,26 @@ async def update_ozon_data(message: types.Message):
 
     async with aiohttp.ClientSession(connector=connector) as session:
         batch_size = 100
+        article_data = await get_ozon_products(session)
+        if not article_data:
+            await message.answer("Не удалось получить список товаров с Ozon.")
+            return
+        article_data = {item["offer_id"] for item in article_data}
+        kgt = await get_product_info(session, article_data)
+        logging.info(len(article_data))
+        logging.info(len(kgt))
+        if not kgt:
+            await message.answer("Не удалось получить расширенный список товаров с Ozon.")
+            return
+        kgt = {item["offer_id"] for item in kgt if item.get("is_kgt", False)}
         rows = list(df.iterrows())
         logging.info(len(rows))
         categories_id = ['А   Дренажные насосы', 'Б   Колодезные насосы', 'В   Фекальные насосы', 'Г   Скважинные насосы', 'Д   Самовсасывающие насосы', 'Е   Вихревые насосы', 'Ж   Центробежные', 'З   Многоступенчатые', 'К   Нас. авт.станц', 'Л   Нас. авт.станц. с защ. с/сх', 'М   Баки', 'Н   Аксессуары', 'О   Пульты', 'П   Станции управления', 'Р   Комбипрессы', 'С   Установка SAR', '*   Гидравлика', '*   Электродвигатели', 'Артикул', 'Итого']
-        kgt = ['48SGD9812A', '48SGD9813A', '48SGD9814A', '48SGD9812A1', '48SGM970CA', '48SGM970GA', '48SGM970DA', '48SGM970EA', '48SGM970IA', '48SGM9851A', '48SGM9852A', '48SGM9853A', '48SGM9863A', '48SGM9854A', '48SGM9864A', '48SGQ9851A', '48SGQ9863A', '48SGQ9854A', '48SGQ9864A', '48SGM9852A1', '48SGQ9852A1', '48SGQ9853A1', '48SHT02A', '48SHT03A', '48SHT9803A', '48SHT07A', '48SHT9804A', '48SHT08A', '48SGV970GA', '48SGV970PA', '48SGV970HA', '48SGV970MA', '48SGV970QA', '48SGV970NA', '48SGV970RA', '48SGV9851A', '48SGV9852A', '48SGV9863A', '48SGV9854A', '48SGV9864A', '48SGVP970EA', '48SGY9851A', '48SGY9861A', '48SGY9852A', '48SGY9862A', '48SGY9854A', '48SGY9864A', '48SGV9861A1', '48SGV9852A1', '48SGV9853A1', '48SGY9852A1', '48SGY9853A1', '48SGY947AA1', '4941222WLA', '496H3427WLA', '496B1208A', '496B1211A', '496B1215A', '496B1218A', '496B1221A', '496B1225A', '496B1809A', '496B1811A', '496B1813A', '496B1815A', '496B1818A', '496B1822A', '496B2705A', '496B2712A', '496B2727A', '49623604WLA', '49624404WLA', '46JDNP7A30A1', '46JS8AH15A', '46JS8AM15A', '46JS8AL10A', '46JS8AL05A', '46JS8AM05A', '46JS8AL15A1', '46JS8AL05A1', '46JS8AH05A1', '43PJD15038A', '43PJC20048A', '43PJB30068A', '43PJC15038A1', '43PJD15038A1', '41PM9217A1', '43FCR0152A', '43FCR0302A', '452CT313BA', '452CT303CA', '452CT353AE', '452CT343BE', '452CT403AE', '452CT383CA', '452CT420AE', '452CT420BE', '452CM2616AA1', '452CM2616BA1', '452CM2614CA1', '44CT216AA', '44CT217HAE', '44CT217AE', '44CT217BA', '44CP250ANE', '44CM26BA1', '44CM26CA1', '44CI175A1', '44CI17MA1', '44CI19A1', '4FN32203AE', '4FN3220HAA', '4FN32203BE', '4FN3220HBA', '4FN32203CA', '4FN32250AE', '4FN32250BE', '4FN32250CE', '4FN40163AA', '4FN40159B1A', '4FN40203AE', '4FN40203BE', '4FN40250AE', '4FN40250BE', '4FN40250CE', '4FN50161AA', '4FN50162B1A', '4FN50163AE', '4F50163XAE', '4FN50163BE', '4F50163XBE', '4FN50163CA', '4FN50165AE', '4FN50165BE', '4FN50165CE', '4FN50170E', '4FN50172AE', '4FN50169E', '4FN50167E', '4FN65125AE', '4F65125XAE', '4FN65125BE', '4F65125XBE', '4FN65125CA', '4F65125XCA', '4FN65160E', '4FN65159E', '4FN65158E', '4FN65165AE', '4FN65170AE', '4FN65165BE', '4FN80160AE', '4FN80160BE', '4FN80160CE', '4FN80160DE', '4FN80200BE', '4FNA10160BNE', '4FNA10200BE', '4FP50163BA', '4FP65125BA', '4FP80160DA', '47HF83T0AA', '47HF8T0B1A', '47HF826AA', '47HF826BA', '47HF93TAE', '47HF93TBE', '48HT00307A1']
         updated_products = []
         k = 0
         e = 0
         logging.info(len(article_data))
+        logging.info(len(kgt))
         for i in range(0, len(rows), batch_size):
             batch = rows[i:i + batch_size]
             price_data = {
@@ -180,6 +189,63 @@ async def update_ozon_data(message: types.Message):
         await message.answer(f"Обновление завершено! Цены подсчитаны по курсу: {user_data[user_id]['exchange_rate']} ")
     else:
         await message.answer("Не удалось обновить товары. Проверьте данные и попробуйте снова.")
+
+
+async def get_product_info(session, article_data):
+    """ Получает данные о товарах с Ozon по списку артикулов (offer_id) асинхронно """
+    url = "https://api-seller.ozon.ru/v3/product/info/list"
+
+    headers = {
+        "Client-Id": OZON_CLIENT_ID,
+        "Api-Key": OZON_API_KEY,
+        "Content-Type": "application/json"
+    }
+    payload = payload = {
+        "offer_id": list(article_data)
+    }
+
+    try:
+        async with session.post(url, headers=headers, json=payload) as response:
+            response_text = await response.text()
+            if response.status == 200:
+                data = await response.json()
+                return data.get("items", [])
+            else:
+                logging.error(f"Ошибка получения списка товаров: {response.status()} - {response_text}")
+                return []
+    except aiohttp.ClientError as e:
+        logging.error(f"Ошибка сети при запросе товаров Ozon: {e}")
+        return []
+
+
+async def get_ozon_products(session):
+    """ Получает данные о товарах с Ozon по списку артикулов (offer_id) """
+    url = "https://api-seller.ozon.ru/v3/product/list"
+    headers = {
+        "Client-Id": OZON_CLIENT_ID,
+        "Api-Key": OZON_API_KEY,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "filter": {
+            "visibility": "ALL"
+        },
+        "last_id": "",
+        "limit": 1000
+    }
+
+    try:
+        async with session.post(url, headers=headers, json=payload) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data.get("result", {}).get("items", [])
+            else:
+                logging.error(f"Ошибка получения списка товаров: {response.status}")
+                return []
+    except aiohttp.ClientError as e:
+        logging.error(f"Ошибка сети при запросе товаров Ozon: {e}")
+        return []
+
 
 # Обновление пакета товаров на Ozon
 async def update_ozon_batch(session, price_data, stock_data):
